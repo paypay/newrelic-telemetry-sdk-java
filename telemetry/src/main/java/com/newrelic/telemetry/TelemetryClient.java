@@ -43,7 +43,7 @@ public class TelemetryClient {
     thread.setDaemon(true);
     return thread;
   });
-  private final long shutdownSeconds = 3;
+  private final long shutdownSeconds;
 
   /**
    * Create a new TelemetryClient instance, with three senders. Note that if you don't intend to
@@ -60,6 +60,26 @@ public class TelemetryClient {
     this.metricBatchSender = metricBatchSender;
     this.spanBatchSender = spanBatchSender;
     this.eventBatchSender = eventBatchSender;
+    this.shutdownSeconds = 3L;
+  }
+
+  /**
+   * Create a new TelemetryClient instance, with three senders and seconds to wait for shutdown.
+   *
+   * @param metricBatchSender The sender for dimensional metrics.
+   * @param spanBatchSender The sender for distributed tracing spans.
+   * @param eventBatchSender The sender for custom events
+   * @param shutdownSeconds num of seconds to wait for graceful shutdown of its executor
+   */
+  public TelemetryClient(
+      MetricBatchSender metricBatchSender,
+      SpanBatchSender spanBatchSender,
+      EventBatchSender eventBatchSender,
+      long shutdownSeconds) {
+    this.metricBatchSender = metricBatchSender;
+    this.spanBatchSender = spanBatchSender;
+    this.eventBatchSender = eventBatchSender;
+    this.shutdownSeconds = shutdownSeconds;
   }
 
   /**
