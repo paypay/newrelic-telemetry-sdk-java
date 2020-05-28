@@ -4,7 +4,6 @@
  */
 package com.newrelic.telemetry;
 
-import com.newrelic.telemetry.Backoff.Builder;
 import com.newrelic.telemetry.events.EventBatch;
 import com.newrelic.telemetry.events.EventBatchSender;
 import com.newrelic.telemetry.exceptions.ResponseException;
