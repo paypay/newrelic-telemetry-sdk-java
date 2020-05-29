@@ -38,7 +38,12 @@ public class TelemetryClient {
   private final EventBatchSender eventBatchSender;
   private final MetricBatchSender metricBatchSender;
   private final SpanBatchSender spanBatchSender;
-  private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
+  private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor(r -> {
+    Thread thread = new Thread(r);
+    thread.setDaemon(true);
+    return thread;
+  });
+  private long shutdownSeconds = 3;
 
   /**
    * Create a new TelemetryClient instance, with three senders. Note that if you don't intend to
@@ -55,6 +60,18 @@ public class TelemetryClient {
     this.metricBatchSender = metricBatchSender;
     this.spanBatchSender = spanBatchSender;
     this.eventBatchSender = eventBatchSender;
+  }
+
+  /**
+   * Create a new TelemetryClient instance from Builder
+   *
+   * @param builder TelemetryClient.Builder
+   */
+  public TelemetryClient(Builder builder) {
+      this.metricBatchSender = builder.metricBatchSender;
+      this.spanBatchSender = builder.spanBatchSender;
+      this.eventBatchSender = builder.eventBatchSender;
+      this.shutdownSeconds = builder.shutdownSeconds;
   }
 
   /**
@@ -172,6 +189,14 @@ public class TelemetryClient {
   public void shutdown() {
     LOG.info("Shutting down the TelemetryClient background Executor");
     executor.shutdown();
+    try {
+      if (!executor.awaitTermination(shutdownSeconds, TimeUnit.SECONDS)) {
+        LOG.warn("couldn't shutdown within timeout");
+        executor.shutdownNow();
+      }
+    } catch (InterruptedException e) {
+        LOG.error("interrupted graceful shutdown", e);
+    }
   }
 
   /**
@@ -183,24 +208,65 @@ public class TelemetryClient {
    */
   public static TelemetryClient create(
       Supplier<HttpPoster> httpPosterCreator, String insertApiKey) {
-    MetricBatchSender metricBatchSender =
-        MetricBatchSender.create(
-            MetricBatchSenderFactory.fromHttpImplementation(httpPosterCreator::get)
-                .configureWith(insertApiKey)
-                .build());
+    return Builder.defaultBuilder(httpPosterCreator, insertApiKey).build();
+  }
 
-    SpanBatchSender spanBatchSender =
-        SpanBatchSender.create(
-            SpanBatchSenderFactory.fromHttpImplementation(httpPosterCreator::get)
-                .configureWith(insertApiKey)
-                .build());
+  public static class Builder {
+    private MetricBatchSender metricBatchSender;
+    private SpanBatchSender spanBatchSender;
+    private EventBatchSender eventBatchSender;
+    private long shutdownSeconds;
 
-    EventBatchSender eventBatchSender =
-        EventBatchSender.create(
-            EventBatchSenderFactory.fromHttpImplementation(httpPosterCreator::get)
-                .configureWith(insertApiKey)
-                .build());
+    public Builder metricBatchSender(MetricBatchSender metricBatchSender) {
+      this.metricBatchSender = metricBatchSender;
+      return this;
+    }
 
-    return new TelemetryClient(metricBatchSender, spanBatchSender, eventBatchSender);
+    public Builder spanBatchSender(SpanBatchSender spanBatchSender) {
+      this.spanBatchSender = spanBatchSender;
+      return this;
+    }
+
+    public Builder eventBatchSender(EventBatchSender eventBatchSender) {
+      this.eventBatchSender = eventBatchSender;
+      return this;
+    }
+
+    public Builder shutdownSeconds(long shutdownSeconds) {
+      this.shutdownSeconds = shutdownSeconds;
+      return this;
+    }
+
+    public TelemetryClient build() {
+      return new TelemetryClient(this);
+    }
+
+    public static Builder defaultBuilder(
+        Supplier<HttpPoster> httpPosterCreator, String insertApiKey) {
+      MetricBatchSender metricBatchSender =
+          MetricBatchSender.create(
+              MetricBatchSenderFactory.fromHttpImplementation(httpPosterCreator)
+                  .configureWith(insertApiKey)
+                  .build());
+
+      SpanBatchSender spanBatchSender =
+          SpanBatchSender.create(
+              SpanBatchSenderFactory.fromHttpImplementation(httpPosterCreator)
+                  .configureWith(insertApiKey)
+                  .build());
+
+      EventBatchSender eventBatchSender =
+          EventBatchSender.create(
+              EventBatchSenderFactory.fromHttpImplementation(httpPosterCreator)
+                  .configureWith(insertApiKey)
+                  .build());
+
+      long shutdownSeconds = 3L;
+
+      return new Builder().metricBatchSender(metricBatchSender)
+          .spanBatchSender(spanBatchSender)
+          .eventBatchSender(eventBatchSender)
+          .shutdownSeconds(shutdownSeconds);
+    }
   }
 }
