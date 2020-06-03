@@ -201,8 +201,8 @@ public class TelemetryClient {
         executor.shutdownNow();
       }
     } catch (InterruptedException e) {
-      Thread.currentThread().interrupt();
       LOG.error("interrupted graceful shutdown", e);
+      Thread.currentThread().interrupt();
     }
   }
 
